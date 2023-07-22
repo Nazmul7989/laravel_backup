@@ -155,7 +155,7 @@ public function boot(){
 </li>
 </ul>
 
-### Run command for backup
+### Finally Run command for backup
 ``` 
 php artisan backup:run
 ```
