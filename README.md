@@ -7,60 +7,155 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
-## About Laravel
+### Create Laravel Project
+``` 
+composer create-project laravel/laravel example-app
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Run project 
+``` 
+php artisan serve
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Install Laravel Spatie Backup Package
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+``` 
+composer require spatie/laravel-backup
+```
+To publish the config file to config/backup.php run:
+```
+php artisan vendor:publish --provider="Spatie\Backup\BackupServiceProvider"
+```
 
-## Learning Laravel
+### Add this for Xampp in app/config/database.php
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+``` 
+'connections' => [
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+        'mysql' => [
+            'driver' => 'mysql',
+            'dump' => [
+                'dump_binary_path' => 'C:/xampp/mysql/bin/', // only the path, so without `mysqldump` or `pg_dump`
+                'use_single_transaction',
+                'timeout' => 60 * 5, // 5 minute timeout
+            ],
+        ],
+    ],
+```
+### Configure your .env file for sending Notificaion
+``` 
+MAIL_MAILER=smtp
+MAIL_HOST=sandbox.smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="${APP_NAME}"
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Taking backups
+``` 
+php artisan backup:run
+```
+If you only need to backup the db, run:
+``` 
+php artisan backup:run --only-db
+```
+If you only need to backup the files, and want to skip dumping the databases, run:
+``` 
+php artisan backup:run --only-files
+```
+### Cleaning up old backups
+``` 
+php artisan backup:clean
+```
 
-## Laravel Sponsors
+# Backup Laravel Project to Google Drive
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+Install Google drive filesystem extension
+``` 
+composer require masbug/flysystem-google-drive-ext
+```
 
-### Premium Partners
+### Configure .env file
+```
+GOOGLE_DRIVE_CLIENT_ID=
+GOOGLE_DRIVE_CLIENT_SECRET=xxx
+GOOGLE_DRIVE_REFRESH_TOKEN=xxx
+GOOGLE_DRIVE_FOLDER=Backups
+```
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+### Add disks on config/filesystems.php
+``` 
+'google' => [
+        'driver' => 'google',
+        'clientId' => env('GOOGLE_DRIVE_CLIENT_ID'),
+        'clientSecret' => env('GOOGLE_DRIVE_CLIENT_SECRET'),
+        'refreshToken' => env('GOOGLE_DRIVE_REFRESH_TOKEN'),
+        'folder' => env('GOOGLE_DRIVE_FOLDER'), 
+    ],
+```
 
-## Contributing
+### Add driver storage in a ServiceProvider on path app/Providers/
+``` 
+public function boot(){
+   
+        try {
+            \Storage::extend('google', function($app, $config) {
+                $options = [];
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+                if (!empty($config['teamDriveId'] ?? null)) {
+                    $options['teamDriveId'] = $config['teamDriveId'];
+                }
 
-## Code of Conduct
+                $client = new \Google\Client();
+                $client->setClientId($config['clientId']);
+                $client->setClientSecret($config['clientSecret']);
+                $client->refreshToken($config['refreshToken']);
+                
+                $service = new \Google\Service\Drive($client);
+                $adapter = new \Masbug\Flysystem\GoogleDriveAdapter($service, $config['folder'] ?? '/', $options);
+                $driver = new \League\Flysystem\Filesystem($adapter);
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+                return new \Illuminate\Filesystem\FilesystemAdapter($driver, $adapter);
+            });
+        } catch(\Exception $e) {
+            // your exception handling logic
+        }
+       
+    }
+```
 
-## Security Vulnerabilities
+### Getting Google Keys
+<ul>
+<li>
+    <a href="https://console.cloud.google.com/">Getting your Client ID and Secret</a>
+</li>
+<li>
+<a href="https://github.com/ivanvermeyen/laravel-google-drive-demo/blob/master/README/2-getting-your-refresh-token.md">Getting your Refresh Token</a>
+</li>
+</ul>
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Update app/config/backup.php
+``` 
+ 'destination' => [
+ 
+            'disks' => [
+                // 'local', change local to google
+                'google',
+            ],
+        ],
+```
 
-## License
+### Create a folder named "Backups" in your google drive. Then create another folder named "Laravel" into this Backups folder. This "Laravel" name should be same as storage/app/Laravel
+<ul>
+<li>
+    <a href="https://drive.google.com/">Google Drive</a>
+</li>
+</ul>
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Run command for backup
+``` 
+php artisan backup:run
+```
