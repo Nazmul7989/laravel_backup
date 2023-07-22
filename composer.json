@@ -9,6 +9,7 @@
         "guzzlehttp/guzzle": "^7.2",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.2",
+        "laravel/slack-notification-channel": "^3.0",
         "laravel/tinker": "^2.8",
         "spatie/laravel-backup": "^8.1"
     },
